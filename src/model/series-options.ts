@@ -68,6 +68,8 @@ export interface LineStyleOptions {
 
 export interface AreaStyleOptions {
 	topColor: string;
+	topMiddleColor: string;
+	bottomMiddleColor: string;
 	bottomColor: string;
 	lineColor: string;
 	lineStyle: LineStyle;

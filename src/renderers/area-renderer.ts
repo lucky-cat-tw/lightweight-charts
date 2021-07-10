@@ -14,6 +14,8 @@ export interface PaneRendererAreaData {
 	lineStyle: LineStyle;
 
 	topColor: string;
+	topMiddleColor: string;
+	bottomMiddleColor: string;
 	bottomColor: string;
 	bottom: Coordinate;
 
@@ -67,6 +69,8 @@ export class PaneRendererArea extends ScaledRenderer {
 
 		const gradient = ctx.createLinearGradient(0, this._data.items[0].y - this._data.bottom/3, 0, this._data.items[0].y + this._data.bottom/3);
 		gradient.addColorStop(0, this._data.topColor);
+		gradient.addColorStop(0.5, this._data.topMiddleColor);
+		gradient.addColorStop(0.5, this._data.bottomMiddleColor);
 		gradient.addColorStop(1, this._data.bottomColor);
 
 		ctx.fillStyle = gradient;

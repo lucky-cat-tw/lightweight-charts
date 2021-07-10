@@ -42,6 +42,8 @@ export const lineStyleDefaults: LineStyleOptions = {
 
 export const areaStyleDefaults: AreaStyleOptions = {
 	topColor: 'rgba( 46, 220, 135, 0.4)',
+	topMiddleColor: 'rgba( 46, 220, 135, 0.4)',
+	bottomMiddleColor: 'rgba( 40, 221, 100, 0)',
 	bottomColor: 'rgba( 40, 221, 100, 0)',
 	lineColor: '#33D778',
 	lineStyle: LineStyle.Solid,
