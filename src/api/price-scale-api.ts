@@ -8,6 +8,8 @@ import { PriceScale, PriceScaleOptions } from '../model/price-scale';
 
 import { IPriceScaleApi } from './iprice-scale-api';
 
+import { PriceRangeImpl } from '../model/price-range-impl';
+
 export class PriceScaleApi implements IPriceScaleApi {
 	private _chartWidget: ChartWidget;
 	private readonly _priceScaleId: string;
@@ -31,6 +33,10 @@ export class PriceScaleApi implements IPriceScaleApi {
 		}
 
 		return this._chartWidget.getPriceAxisWidth(this._priceScaleId === DefaultPriceScaleId.Left ? 'left' : 'right');
+	}
+
+	public setPriceRange(minValue: number, maxValue: number): void {
+		this._priceScale().setPriceRange(new PriceRangeImpl(minValue, maxValue), true);
 	}
 
 	private _priceScale(): PriceScale {

@@ -22,4 +22,12 @@ export interface IPriceScaleApi {
 	 * Returns a width of the price scale if it's visible or 0 if invisible.
 	 */
 	width(): number;
+
+	/**
+	 * Sets price range of data.
+	 *
+	 * @param minValue - min price range of data.
+	 * @param maxValue - max price range of data.
+	 */
+	setPriceRange(minValue: number, maxValue: number): void;
 }
