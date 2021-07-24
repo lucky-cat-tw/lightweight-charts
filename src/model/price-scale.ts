@@ -348,7 +348,7 @@ export class PriceScale {
 
 		const hmm = ih / (max - min);
 
-		const fromIndex = (visibleRange === undefined) ? 0 : visibleRange.from;
+		const fromIndex = 0;
 		const toIndex = (visibleRange === undefined) ? points.length : visibleRange.to;
 
 		const transformFn = this._getCoordinateTransformer();
