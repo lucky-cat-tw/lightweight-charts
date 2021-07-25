@@ -47,6 +47,9 @@ export class PaneRendererArea extends ScaledRenderer {
 
 		ctx.beginPath();
 
+		let from = this._data.visibleRange.from;
+		if (from == 0) from++;
+
 		if (this._data.items.length === 1) {
 			const point = this._data.items[0];
 			const halfBarWidth = this._data.barWidth / 2;
@@ -55,14 +58,14 @@ export class PaneRendererArea extends ScaledRenderer {
 			ctx.lineTo(point.x + halfBarWidth, point.y);
 			ctx.lineTo(point.x + halfBarWidth, point.y);
 		} else {
-			ctx.moveTo(this._data.items[this._data.visibleRange.from].x, this._data.items[0].y);
-			ctx.lineTo(this._data.items[this._data.visibleRange.from].x, this._data.items[this._data.visibleRange.from].y);
+			ctx.moveTo(this._data.items[from].x, this._data.items[0].y);
+			ctx.lineTo(this._data.items[from].x, this._data.items[from].y);
 
-			walkLine(ctx, this._data.items, this._data.lineType, this._data.visibleRange);
+			walkLine(ctx, this._data.items, this._data.lineType, this._data.visibleRange, from);
 
-			if (this._data.visibleRange.to > this._data.visibleRange.from) {
+			if (this._data.visibleRange.to > from) {
 				ctx.lineTo(this._data.items[this._data.visibleRange.to - 1].x, this._data.items[0].y);
-				ctx.lineTo(this._data.items[this._data.visibleRange.from].x, this._data.items[0].y);
+				ctx.lineTo(this._data.items[from].x, this._data.items[0].y);
 			}
 		}
 		ctx.closePath();

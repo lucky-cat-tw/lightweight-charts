@@ -33,6 +33,9 @@ export class PaneRendererLine extends ScaledRenderer {
 			return;
 		}
 
+		let from = this._data.visibleRange.from;
+		if (from == 0) from++;
+
 		ctx.lineCap = 'butt';
 		ctx.lineWidth = this._data.lineWidth;
 
@@ -47,7 +50,7 @@ export class PaneRendererLine extends ScaledRenderer {
 			ctx.moveTo(point.x - this._data.barWidth / 2, point.y);
 			ctx.lineTo(point.x + this._data.barWidth / 2, point.y);
 		} else {
-			walkLine(ctx, this._data.items, this._data.lineType, this._data.visibleRange);
+			walkLine(ctx, this._data.items, this._data.lineType, this._data.visibleRange, from);
 		}
 
 		ctx.stroke();

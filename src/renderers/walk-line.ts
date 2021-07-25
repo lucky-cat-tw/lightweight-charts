@@ -9,17 +9,18 @@ export function walkLine(
 	ctx: CanvasRenderingContext2D,
 	points: readonly LinePoint[],
 	lineType: LineType,
-	visibleRange: SeriesItemsIndexesRange
+	visibleRange: SeriesItemsIndexesRange,
+	from: number,
 ): void {
 	if (points.length === 0) {
 		return;
 	}
 
-	const x = points[visibleRange.from].x as number;
-	const y = points[visibleRange.from].y as number;
+	const x = points[from].x as number;
+	const y = points[from].y as number;
 	ctx.moveTo(x, y);
 
-	for (let i = visibleRange.from + 1; i < visibleRange.to; ++i) {
+	for (let i = from + 1; i < visibleRange.to; ++i) {
 		const currItem = points[i];
 
 		//  x---x---x   or   x---x   o   or   start
