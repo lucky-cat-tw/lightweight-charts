@@ -49,6 +49,7 @@ interface TransitionState {
 }
 
 export interface TimeMark {
+	needAlignCoordinate: boolean;
 	coord: number;
 	label: string;
 	weight: number;
@@ -261,7 +262,7 @@ export class TimeScale {
 		if (this._options.lockVisibleTimeRangeOnResize && this._width) {
 			// recalculate bar spacing
 			const newBarSpacing = this._barSpacing * width / this._width;
-			this._setBarSpacing(newBarSpacing);
+			this._barSpacing = newBarSpacing;
 		}
 
 		// if time scale is scrolled to the end of data and we have fixed right edge
@@ -366,6 +367,12 @@ export class TimeScale {
 
 		const items = this._tickMarks.build(spacing, maxLabelWidth);
 
+		// according to indexPerLabel value this value means "earliest index which _might be_ used as the second label on time scale"
+		const earliestIndexOfSecondLabel = (this._firstIndex() as number) + indexPerLabel;
+
+		// according to indexPerLabel value this value means "earliest index which _might be_ used as the second last label on time scale"
+		const indexOfSecondLastLabel = (this._lastIndex() as number) - indexPerLabel;
+
 		let targetIndex = 0;
 		for (const tm of items) {
 			if (!(firstBar <= tm.index && tm.index <= lastBar)) {
@@ -377,18 +384,32 @@ export class TimeScale {
 				continue;
 			}
 
+			let label: TimeMark;
 			if (targetIndex < this._labels.length) {
-				const label = this._labels[targetIndex];
+				label = this._labels[targetIndex];
 				label.coord = this.indexToCoordinate(tm.index);
 				label.label = this._formatLabel(time, tm.weight);
 				label.weight = tm.weight;
 			} else {
-				this._labels.push({
+				label = {
+					needAlignCoordinate: false,
 					coord: this.indexToCoordinate(tm.index),
 					label: this._formatLabel(time, tm.weight),
 					weight: tm.weight,
-				});
+				};
+
+				this._labels.push(label);
 			}
+
+			if (this._barSpacing > (maxLabelWidth / 2)) {
+				// if there is enough space then let's show all tick marks as usual
+				label.needAlignCoordinate = false;
+			} else {
+				// if a user is able to scroll after a tick mark then show it as usual, otherwise the coordinate might be aligned
+				// if the index is for the second (last) label or later (earlier) then most likely this label might be displayed without correcting the coordinate
+				label.needAlignCoordinate = this._options.fixLeftEdge && tm.index <= earliestIndexOfSecondLabel || this._options.fixRightEdge && tm.index >= indexOfSecondLastLabel;
+			}
+
 			targetIndex++;
 		}
 		this._labels.length = targetIndex;
@@ -527,9 +548,9 @@ export class TimeScale {
 		}
 
 		const source = this._rightOffset;
-		const animationStart = Date.now();
+		const animationStart = performance.now();
 		const animationFn = () => {
-			const animationProgress = (Date.now() - animationStart) / animationDuration;
+			const animationProgress = (performance.now() - animationStart) / animationDuration;
 			const finishAnimation = animationProgress >= 1;
 			const rightOffset = finishAnimation ? offset : source + (offset - source) * animationProgress;
 			this.setRightOffset(rightOffset);
@@ -541,11 +562,11 @@ export class TimeScale {
 		animationFn();
 	}
 
-	public update(newPoints: readonly TimeScalePoint[]): void {
+	public update(newPoints: readonly TimeScalePoint[], firstChangedPointIndex: number): void {
 		this._visibleRangeInvalidated = true;
 
 		this._points = newPoints;
-		this._tickMarks.setTimeScalePoints(newPoints);
+		this._tickMarks.setTimeScalePoints(newPoints, firstChangedPointIndex);
 		this._correctOffset();
 	}
 
@@ -681,7 +702,7 @@ export class TimeScale {
 	private _minBarSpacing(): number {
 		// if both options are enabled then limit bar spacing so that zooming-out is not possible
 		// if it would cause either the first or last points to move too far from an edge
-		if (this._options.fixLeftEdge && this._options.fixRightEdge) {
+		if (this._options.fixLeftEdge && this._options.fixRightEdge && this._points.length !== 0) {
 			return this._width / this._points.length;
 		}
 

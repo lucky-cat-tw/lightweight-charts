@@ -16,6 +16,7 @@ import { IUpdatablePaneView } from '../views/pane/iupdatable-pane-view';
 import { SeriesLinePaneView } from '../views/pane/line-pane-view';
 import { PanePriceAxisView } from '../views/pane/pane-price-axis-view';
 import { SeriesHorizontalBaseLinePaneView } from '../views/pane/series-horizontal-base-line-pane-view';
+import { SeriesLastPriceAnimationPaneView } from '../views/pane/series-last-price-animation-pane-view';
 import { SeriesMarkersPaneView } from '../views/pane/series-markers-pane-view';
 import { SeriesPriceLinePaneView } from '../views/pane/series-price-line-pane-view';
 import { IPriceAxisView } from '../views/price-axis/iprice-axis-view';
@@ -75,7 +76,7 @@ export type LastValueDataResultWithoutRawPrice = LastValueDataResultWithoutData 
 export interface MarkerData {
 	price: BarPrice;
 	radius: number;
-	borderColor: string;
+	borderColor: string | null;
 	backgroundColor: string;
 }
 
@@ -105,11 +106,13 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 	private readonly _customPriceLines: CustomPriceLine[] = [];
 	private readonly _baseHorizontalLineView: SeriesHorizontalBaseLinePaneView = new SeriesHorizontalBaseLinePaneView(this);
 	private _paneView!: IUpdatablePaneView;
+	private readonly _lastPriceAnimationPaneView: SeriesLastPriceAnimationPaneView | null = null;
 	private _barColorerCache: SeriesBarColorer | null = null;
 	private readonly _options: SeriesOptionsInternal<T>;
 	private _markers: SeriesMarker<TimePoint>[] = [];
 	private _indexedMarkers: InternalSeriesMarker<TimePointIndex>[] = [];
 	private _markersPaneView!: SeriesMarkersPaneView;
+	private _animationTimeoutId: TimerId | null = null;
 
 	public constructor(model: ChartModel, options: SeriesOptionsInternal<T>, seriesType: T) {
 		super(model);
@@ -121,12 +124,20 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 
 		this._panePriceAxisView = new PanePriceAxisView(priceAxisView, this, model);
 
+		if (seriesType === 'Area' || seriesType === 'Line') {
+			this._lastPriceAnimationPaneView = new SeriesLastPriceAnimationPaneView(this as Series<'Area'> | Series<'Line'>);
+		}
+
 		this._recreateFormatter();
 
 		this._recreatePaneViews();
 	}
 
-	public destroy(): void {}
+	public destroy(): void {
+		if (this._animationTimeoutId !== null) {
+			clearTimeout(this._animationTimeoutId);
+		}
+	}
 
 	public priceLineColor(lastBarColor: string): string {
 		return this._options.priceLineColor || lastBarColor;
@@ -244,27 +255,14 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 		this._paneView.update('options');
 	}
 
-	public clearData(): void {
-		this._data.clear();
-
-		// we must either re-create pane view on clear data
-		// or clear all caches inside pane views
-		// but currently we can't separate update/append last bar and full data replacement (update vs setData) in pane views invalidation
-		// so let's just re-create all views
-		this._recreatePaneViews();
-	}
-
-	public updateData(data: readonly SeriesPlotRow<T>[], clearData: boolean): void {
-		if (clearData) {
-			this._data.clear();
-		}
-
-		this._data.merge(data);
+	public setData(data: readonly SeriesPlotRow<T>[]): void {
+		this._data.setData(data);
 
 		this._recalculateMarkers();
 
 		this._paneView.update('data');
 		this._markersPaneView.update('data');
+		this._lastPriceAnimationPaneView?.update('data');
 
 		const sourcePane = this.model().paneForSource(this);
 		this.model().recalculatePane(sourcePane);
@@ -350,6 +348,26 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 		}
 	}
 
+	public topPaneViews(pane: Pane): readonly IPaneView[] {
+		const animationPaneView = this._lastPriceAnimationPaneView;
+		if (animationPaneView === null || !animationPaneView.visible()) {
+			return [];
+		}
+
+		if (this._animationTimeoutId === null && animationPaneView.animationActive()) {
+			this._animationTimeoutId = setTimeout(
+				() => {
+					this._animationTimeoutId = null;
+					this.model().cursorUpdate();
+				},
+				0
+			);
+		}
+
+		animationPaneView.invalidateStage();
+		return [animationPaneView];
+	}
+
 	public paneViews(): readonly IPaneView[] {
 		const res: IPaneView[] = [];
 
@@ -416,6 +434,7 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 
 		this._priceLineView.update();
 		this._baseHorizontalLineView.update();
+		this._lastPriceAnimationPaneView?.update();
 	}
 
 	public priceScale(): PriceScale {
@@ -487,7 +506,7 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 		return 0;
 	}
 
-	private _markerBorderColor(): string {
+	private _markerBorderColor(): string | null {
 		switch (this._seriesType) {
 			case 'Line':
 			case 'Area': {
@@ -498,7 +517,7 @@ export class Series<T extends SeriesType = SeriesType> extends PriceDataSource i
 			}
 		}
 
-		return this.model().options().layout.backgroundColor;
+		return null;
 	}
 
 	private _markerBackgroundColor(index: TimePointIndex): string {

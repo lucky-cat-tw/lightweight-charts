@@ -48,6 +48,16 @@ export function fillUpDownCandlesticksColors(options: Partial<CandlestickStyleOp
 	}
 }
 
+export const enum LastPriceAnimationMode {
+	Disabled,
+	Continuous,
+	OnDataUpdate,
+}
+
+// we cannot create re-export of const enum because of TypeScript bug https://github.com/microsoft/TypeScript/issues/45850
+/** @deprecated it doesn't really matter what we write here, because it doesn't work properly, but just to mark the thing we have to delete in the next major update */
+export { LastPriceAnimationMode as LasPriceAnimationMode };
+
 export interface BarStyleOptions {
 	upColor: string;
 	downColor: string;
@@ -64,6 +74,7 @@ export interface LineStyleOptions {
 	crosshairMarkerRadius: number;
 	crosshairMarkerBorderColor: string;
 	crosshairMarkerBackgroundColor: string;
+	lastPriceAnimation: LastPriceAnimationMode;
 }
 
 export interface AreaStyleOptions {
@@ -79,6 +90,7 @@ export interface AreaStyleOptions {
 	crosshairMarkerRadius: number;
 	crosshairMarkerBorderColor: string;
 	crosshairMarkerBackgroundColor: string;
+	lastPriceAnimation: LastPriceAnimationMode;
 }
 
 export interface HistogramStyleOptions {

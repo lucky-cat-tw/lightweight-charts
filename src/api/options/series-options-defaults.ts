@@ -3,6 +3,7 @@ import {
 	BarStyleOptions,
 	CandlestickStyleOptions,
 	HistogramStyleOptions,
+	LastPriceAnimationMode,
 	LineStyleOptions,
 	PriceLineSource,
 	SeriesOptionsCommon,
@@ -38,6 +39,7 @@ export const lineStyleDefaults: LineStyleOptions = {
 	crosshairMarkerRadius: 4,
 	crosshairMarkerBorderColor: '',
 	crosshairMarkerBackgroundColor: '',
+	lastPriceAnimation: LastPriceAnimationMode.Disabled,
 };
 
 export const areaStyleDefaults: AreaStyleOptions = {
@@ -53,6 +55,7 @@ export const areaStyleDefaults: AreaStyleOptions = {
 	crosshairMarkerRadius: 4,
 	crosshairMarkerBorderColor: '',
 	crosshairMarkerBackgroundColor: '',
+	lastPriceAnimation: LastPriceAnimationMode.Disabled,
 };
 
 export const histogramStyleDefaults: HistogramStyleOptions = {

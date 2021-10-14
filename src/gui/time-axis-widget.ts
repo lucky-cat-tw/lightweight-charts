@@ -1,13 +1,14 @@
 import { Binding as CanvasCoordinateSpaceBinding } from 'fancy-canvas/coordinate-space';
 
 import { clearRect, drawScaled } from '../helpers/canvas-helpers';
+import { Delegate } from '../helpers/delegate';
 import { IDestroyable } from '../helpers/idestroyable';
+import { ISubscription } from '../helpers/isubscription';
 import { makeFont } from '../helpers/make-font';
 
-import { Coordinate } from '../model/coordinate';
 import { IDataSource } from '../model/idata-source';
 import { InvalidationLevel } from '../model/invalidate-mask';
-import { LayoutOptions } from '../model/layout-options';
+import { LayoutOptionsInternal } from '../model/layout-options';
 import { TextWidthCache } from '../model/text-width-cache';
 import { TimeMark } from '../model/time-scale';
 import { TimeAxisViewRendererOptions } from '../renderers/itime-axis-view-renderer';
@@ -33,7 +34,7 @@ function markWithGreaterWeight(a: TimeMark, b: TimeMark): TimeMark {
 
 export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 	private readonly _chart: ChartWidget;
-	private readonly _options: LayoutOptions;
+	private readonly _options: LayoutOptionsInternal;
 	private readonly _element: HTMLElement;
 	private readonly _leftStubCell: HTMLElement;
 	private readonly _rightStubCell: HTMLElement;
@@ -47,6 +48,8 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 	private _rendererOptions: TimeAxisViewRendererOptions | null = null;
 	private _mouseDown: boolean = false;
 	private _size: Size = new Size(0, 0);
+	private readonly _sizeChanged: Delegate<Size> = new Delegate();
+	private readonly _widthCache: TextWidthCache = new TextWidthCache(5);
 
 	public constructor(chartWidget: ChartWidget) {
 		this._chart = chartWidget;
@@ -143,7 +146,7 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 			return;
 		}
 
-		model.startScaleTime(event.localX as Coordinate);
+		model.startScaleTime(event.localX);
 	}
 
 	public mouseDownOutsideEvent(): void {
@@ -162,7 +165,7 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 			return;
 		}
 
-		model.scaleTimeTo(event.localX as Coordinate);
+		model.scaleTimeTo(event.localX);
 	}
 
 	public mouseUpEvent(event: TouchMouseEvent): void {
@@ -195,6 +198,10 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 		return this._size;
 	}
 
+	public sizeChanged(): ISubscription<Size> {
+		return this._sizeChanged;
+	}
+
 	public setSizes(timeAxisSize: Size, leftStubWidth: number, rightStubWidth: number): void {
 		if (!this._size || !this._size.equals(timeAxisSize)) {
 			this._size = timeAxisSize;
@@ -204,6 +211,8 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 
 			this._cell.style.width = timeAxisSize.w + 'px';
 			this._cell.style.height = timeAxisSize.h + 'px';
+
+			this._sizeChanged.fire(timeAxisSize);
 		}
 
 		if (this._leftStub !== null) {
@@ -267,7 +276,7 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 
 	private _drawBackground(ctx: CanvasRenderingContext2D, pixelRatio: number): void {
 		drawScaled(ctx, pixelRatio, () => {
-			clearRect(ctx, 0, 0, this._size.w, this._size.h, this._backgroundColor());
+			clearRect(ctx, 0, 0, this._size.w, this._size.h, this._chart.model().backgroundBottomColor());
 		});
 	}
 
@@ -337,16 +346,32 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 			ctx.font = this._baseFont();
 			for (const tickMark of tickMarks) {
 				if (tickMark.weight < maxWeight) {
-					ctx.fillText(tickMark.label, tickMark.coord, yText);
+					const coordinate = tickMark.needAlignCoordinate ? this._alignTickMarkLabelCoordinate(ctx, tickMark.coord, tickMark.label) : tickMark.coord;
+					ctx.fillText(tickMark.label, coordinate, yText);
 				}
 			}
 			ctx.font = this._baseBoldFont();
 			for (const tickMark of tickMarks) {
 				if (tickMark.weight >= maxWeight) {
-					ctx.fillText(tickMark.label, tickMark.coord, yText);
+					const coordinate = tickMark.needAlignCoordinate ? this._alignTickMarkLabelCoordinate(ctx, tickMark.coord, tickMark.label) : tickMark.coord;
+					ctx.fillText(tickMark.label, coordinate, yText);
 				}
 			}
 		});
+	}
+
+	private _alignTickMarkLabelCoordinate(ctx: CanvasRenderingContext2D, coordinate: number, labelText: string): number {
+		const labelWidth = this._widthCache.measureText(ctx, labelText);
+		const labelWidthHalf = labelWidth / 2;
+		const leftTextCoordinate = Math.floor(coordinate - labelWidthHalf) + 0.5;
+
+		if (leftTextCoordinate < 0) {
+			coordinate = coordinate + Math.abs(0 - leftTextCoordinate);
+		} else if (leftTextCoordinate + labelWidth > this._size.w) {
+			coordinate = coordinate - Math.abs(this._size.w - (leftTextCoordinate + labelWidth));
+		}
+
+		return coordinate;
 	}
 
 	private _drawLabels(sources: readonly IDataSource[], ctx: CanvasRenderingContext2D, pixelRatio: number): void {
@@ -358,10 +383,6 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 				ctx.restore();
 			}
 		}
-	}
-
-	private _backgroundColor(): string {
-		return this._options.backgroundColor;
 	}
 
 	private _lineColor(): string {
@@ -437,18 +458,19 @@ export class TimeAxisWidget implements MouseEventHandlers, IDestroyable {
 		const params: PriceAxisStubParams = {
 			rendererOptionsProvider: rendererOptionsProvider,
 		};
+
+		const borderVisibleGetter = () => {
+			return options.leftPriceScale.borderVisible && model.timeScale().options().borderVisible;
+		};
+
+		const bottomColorGetter = () => model.backgroundBottomColor();
+
 		if (options.leftPriceScale.visible && this._leftStub === null) {
-			const borderVisibleGetter = () => {
-				return options.leftPriceScale.borderVisible && model.timeScale().options().borderVisible;
-			};
-			this._leftStub = new PriceAxisStub('left', this._chart.options(), params, borderVisibleGetter);
+			this._leftStub = new PriceAxisStub('left', options, params, borderVisibleGetter, bottomColorGetter);
 			this._leftStubCell.appendChild(this._leftStub.getElement());
 		}
 		if (options.rightPriceScale.visible && this._rightStub === null) {
-			const borderVisibleGetter = () => {
-				return options.rightPriceScale.borderVisible && model.timeScale().options().borderVisible;
-			};
-			this._rightStub = new PriceAxisStub('right', this._chart.options(), params, borderVisibleGetter);
+			this._rightStub = new PriceAxisStub('right', options, params, borderVisibleGetter, bottomColorGetter);
 			this._rightStubCell.appendChild(this._rightStub.getElement());
 		}
 	}

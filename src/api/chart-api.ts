@@ -7,6 +7,7 @@ import { clone, DeepPartial, isBoolean, merge } from '../helpers/strict-type-che
 
 import { BarPrice, BarPrices } from '../model/bar';
 import { ChartOptions, ChartOptionsInternal } from '../model/chart-model';
+import { ColorType } from '../model/layout-options';
 import { Series } from '../model/series';
 import {
 	AreaSeriesOptions,
@@ -126,9 +127,21 @@ function migratePriceScaleOptions(options: DeepPartial<ChartOptions>): void {
 	/* eslint-enable deprecation/deprecation */
 }
 
+export function migrateLayoutOptions(options: DeepPartial<ChartOptions>): void {
+	/* eslint-disable deprecation/deprecation */
+	if (!options.layout) {
+		return;
+	}
+	if (options.layout.backgroundColor && !options.layout.background) {
+		options.layout.background = { type: ColorType.Solid, color: options.layout.backgroundColor };
+	}
+	/* eslint-enable deprecation/deprecation */
+}
+
 function toInternalOptions(options: DeepPartial<ChartOptions>): DeepPartial<ChartOptionsInternal> {
 	migrateHandleScaleScrollOptions(options);
 	migratePriceScaleOptions(options);
+	migrateLayoutOptions(options);
 
 	return options as DeepPartial<ChartOptionsInternal>;
 }
@@ -171,7 +184,7 @@ export class ChartApi implements IChartApi, DataUpdatesConsumer<SeriesType> {
 		);
 
 		const model = this._chartWidget.model();
-		this._timeScaleApi = new TimeScaleApi(model);
+		this._timeScaleApi = new TimeScaleApi(model, this._chartWidget.timeAxisWidget());
 	}
 
 	public remove(): void {
@@ -329,8 +342,8 @@ export class ChartApi implements IChartApi, DataUpdatesConsumer<SeriesType> {
 	private _sendUpdateToChart(update: DataUpdateResponse): void {
 		const model = this._chartWidget.model();
 
-		model.updateTimeScale(update.timeScale.baseIndex, update.timeScale.points);
-		update.series.forEach((value: SeriesChanges, series: Series) => series.updateData(value.data, value.fullUpdate));
+		model.updateTimeScale(update.timeScale.baseIndex, update.timeScale.points, update.timeScale.firstChangedPointIndex);
+		update.series.forEach((value: SeriesChanges, series: Series) => series.setData(value.data));
 
 		model.recalculateAllPanes();
 	}
